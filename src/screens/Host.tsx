@@ -11,7 +11,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { KIND_LABEL, TEMPLATES, cleanDeck, uid, type Deck } from '../lib/deck'
 import { BRAND, BrandMark } from '../brand'
-import { joinHost, readJson, writeJson } from '../lib/api'
+import { joinHost, live, readJson, writeJson } from '../lib/api'
 import { Console } from './Console'
 import { Editor } from './Editor'
 import { HOST_NAME, THEME, hostings, rememberHosting, useLibrary, type Hosting, type Saved } from '../lib/hostStore'
@@ -48,7 +48,18 @@ function useTheme() {
 function adoptHandover(code: string | null) {
   const k = new URLSearchParams(location.hash.slice(1)).get('k')
   if (!code || !k || !/^[0-9a-f]{48}$/.test(k)) return
-  if (!hostings().some((h) => h.code === code)) rememberHosting({ code, token: k, title: 'Live session', at: Date.now() })
+  if (!hostings().some((h) => h.code === code)) {
+    rememberHosting({ code, token: k, title: 'Live session', at: Date.now() })
+    // The link carries only the code and the host key, so the card starts as "Live session". The session's public
+    // state has the deck's title; keep the placeholder if that one call fails.
+    live
+      .state(code)
+      .then((s) => {
+        const saved = hostings().find((h) => h.code === code)
+        if (s.title && saved && saved.title === 'Live session') rememberHosting({ ...saved, title: s.title })
+      })
+      .catch(() => {})
+  }
   history.replaceState(null, '', location.pathname + location.search)
 }
 
